@@ -1,4 +1,5 @@
 """Leave-owned persistence; IAM people remain integer references."""
+
 from django.db import models
 from django.db.models import Q
 
@@ -6,22 +7,39 @@ from modules.leave.domain.workflow import LEAVE_TYPES
 
 LEAVE_TYPE_CHOICES = [(value, value) for value in LEAVE_TYPES]
 REQUEST_KIND_CHOICES = [
-    ("new", "New leave"), ("cancellation", "Cancellation"),
+    ("new", "New leave"),
+    ("cancellation", "Cancellation"),
     ("extension", "Extension"),
 ]
 
-STATUS_CHOICES = [(value, value.replace("_", " ").title()) for value in (
-    "draft_not_submitted", "awaiting_substitute_response", "applicant_action_required",
-    "awaiting_unit_head_review", "awaiting_establishment_routing",
-    "awaiting_final_sanction_decision", "awaiting_director_self_sanction", "approved",
-    "rejected", "withdrawn", "cancellation_pending_unit_head_review",
-    "cancellation_pending_establishment", "cancellation_pending_final_decision",
-    "cancelled", "cancellation_rejected_original_unchanged",
-    "awaiting_extension_substitute_response", "extension_applicant_action_required",
-    "awaiting_extension_unit_head_review", "extension_pending_establishment",
-    "extension_pending_final_decision", "extended_incremental_period_posted",
-    "extension_rejected_original_unchanged", "extension_request_withdrawn_original_unchanged",
-)]
+STATUS_CHOICES = [
+    (value, value.replace("_", " ").title())
+    for value in (
+        "draft_not_submitted",
+        "awaiting_substitute_response",
+        "applicant_action_required",
+        "awaiting_unit_head_review",
+        "awaiting_establishment_routing",
+        "awaiting_final_sanction_decision",
+        "awaiting_director_self_sanction",
+        "approved",
+        "rejected",
+        "withdrawn",
+        "cancellation_pending_unit_head_review",
+        "cancellation_pending_establishment",
+        "cancellation_pending_final_decision",
+        "cancelled",
+        "cancellation_rejected_original_unchanged",
+        "awaiting_extension_substitute_response",
+        "extension_applicant_action_required",
+        "awaiting_extension_unit_head_review",
+        "extension_pending_establishment",
+        "extension_pending_final_decision",
+        "extended_incremental_period_posted",
+        "extension_rejected_original_unchanged",
+        "extension_request_withdrawn_original_unchanged",
+    )
+]
 
 
 class LeavePolicy(models.Model):
@@ -40,6 +58,9 @@ class LeavePolicy(models.Model):
     class Meta:
         indexes = [models.Index(fields=["leave_type"], name="leave_policy_type_idx")]
 
+    def __str__(self) -> str:
+        return f"{self.leave_type} leave policy"
+
 
 class AuthorityRoute(models.Model):
     """ELM-owned current hierarchy configuration for an organizational unit."""
@@ -54,8 +75,14 @@ class AuthorityRoute(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(
-            fields=["unit_key", "leave_type"], name="leave_route_unit_type_uniq")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["unit_key", "leave_type"], name="leave_route_unit_type_uniq"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.unit_key} / {self.leave_type}"
 
 
 class HolidayCalendar(models.Model):
@@ -68,32 +95,44 @@ class HolidayCalendar(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(
-            fields=["is_current"], condition=Q(is_current=True),
-            name="leave_one_current_calendar")]
-        indexes = [models.Index(fields=["is_published", "effective_from"],
-                                name="leave_calendar_effective_idx")]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_current"],
+                condition=Q(is_current=True),
+                name="leave_one_current_calendar",
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["is_published", "effective_from"], name="leave_calendar_effective_idx"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class HolidayDate(models.Model):
-    calendar = models.ForeignKey(HolidayCalendar, on_delete=models.CASCADE,
-                                 related_name="dates")
+    calendar = models.ForeignKey(HolidayCalendar, on_delete=models.CASCADE, related_name="dates")
     date = models.DateField()
     name = models.CharField(max_length=160)
     is_restricted_holiday = models.BooleanField(default=False)
 
     class Meta:
-        constraints = [models.UniqueConstraint(
-            fields=["calendar", "date"], name="leave_calendar_date_uniq")]
+        constraints = [
+            models.UniqueConstraint(fields=["calendar", "date"], name="leave_calendar_date_uniq")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.date}: {self.name}"
 
 
 class LeaveApplication(models.Model):
     applicant_user_id = models.BigIntegerField(db_index=True)
-    request_kind = models.CharField(max_length=16, choices=REQUEST_KIND_CHOICES,
-                                    default="new")
+    request_kind = models.CharField(max_length=16, choices=REQUEST_KIND_CHOICES, default="new")
     original_application = models.ForeignKey(
-        "self", null=True, blank=True, on_delete=models.PROTECT,
-        related_name="related_requests")
+        "self", null=True, blank=True, on_delete=models.PROTECT, related_name="related_requests"
+    )
     leave_type = models.CharField(max_length=3, choices=LEAVE_TYPE_CHOICES)
     start_date = models.DateField()
     end_date = models.DateField()
@@ -104,8 +143,9 @@ class LeaveApplication(models.Model):
     station_leave_details = models.CharField(max_length=500, blank=True)
     medical_evidence_reference = models.CharField(max_length=500, blank=True)
     organizational_unit = models.CharField(max_length=160, blank=True)
-    status = models.CharField(max_length=64, choices=STATUS_CHOICES,
-                              default="draft_not_submitted", db_index=True)
+    status = models.CharField(
+        max_length=64, choices=STATUS_CHOICES, default="draft_not_submitted", db_index=True
+    )
     substitute_required = models.BooleanField(default=False)
     substitute_user_id = models.BigIntegerField(null=True, blank=True)
     establishment_required = models.BooleanField(default=False)
@@ -121,25 +161,30 @@ class LeaveApplication(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["applicant_user_id", "-created_at"],
-                         name="leave_app_owner_recent_idx"),
-            models.Index(fields=["status", "-created_at"],
-                         name="leave_app_status_recent_idx"),
-            models.Index(fields=["substitute_user_id", "status"],
-                         name="leave_app_sub_status_idx"),
-            models.Index(fields=["unit_head_user_id", "status"],
-                         name="leave_app_head_status_idx"),
-            models.Index(fields=["final_authority_user_id", "status"],
-                         name="leave_app_auth_status_idx"),
+            models.Index(
+                fields=["applicant_user_id", "-created_at"], name="leave_app_owner_recent_idx"
+            ),
+            models.Index(fields=["status", "-created_at"], name="leave_app_status_recent_idx"),
+            models.Index(fields=["substitute_user_id", "status"], name="leave_app_sub_status_idx"),
+            models.Index(fields=["unit_head_user_id", "status"], name="leave_app_head_status_idx"),
+            models.Index(
+                fields=["final_authority_user_id", "status"], name="leave_app_auth_status_idx"
+            ),
         ]
-        constraints = [models.CheckConstraint(
-            condition=Q(end_date__gte=models.F("start_date")),
-            name="leave_app_dates_ordered")]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(end_date__gte=models.F("start_date")), name="leave_app_dates_ordered"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.leave_type} request {self.pk}"
 
 
 class LeaveDecision(models.Model):
-    application = models.ForeignKey(LeaveApplication, on_delete=models.CASCADE,
-                                    related_name="decisions")
+    application = models.ForeignKey(
+        LeaveApplication, on_delete=models.CASCADE, related_name="decisions"
+    )
     event = models.CharField(max_length=40)
     from_status = models.CharField(max_length=64)
     to_status = models.CharField(max_length=64)
@@ -151,19 +196,29 @@ class LeaveDecision(models.Model):
 
     class Meta:
         ordering = ["created_at", "pk"]
-        indexes = [models.Index(fields=["application", "created_at"],
-                                name="leave_decision_history_idx")]
+        indexes = [
+            models.Index(fields=["application", "created_at"], name="leave_decision_history_idx")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.event} for request {self.application_id}"
 
 
 class SubstituteResponse(models.Model):
-    application = models.ForeignKey(LeaveApplication, on_delete=models.CASCADE,
-                                    related_name="substitute_responses")
+    application = models.ForeignKey(
+        LeaveApplication, on_delete=models.CASCADE, related_name="substitute_responses"
+    )
     substitute_user_id = models.BigIntegerField()
-    response = models.CharField(max_length=8, choices=[("accept", "Accept"), ("decline", "Decline")])
+    response = models.CharField(
+        max_length=8, choices=[("accept", "Accept"), ("decline", "Decline")]
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["created_at", "pk"]
+
+    def __str__(self) -> str:
+        return f"{self.response} for request {self.application_id}"
 
 
 class LeaveAccountTransaction(models.Model):
@@ -172,24 +227,30 @@ class LeaveAccountTransaction(models.Model):
     year = models.PositiveSmallIntegerField()
     amount = models.DecimalField(max_digits=9, decimal_places=2)
     transaction_type = models.CharField(max_length=32)
-    application = models.ForeignKey(LeaveApplication, null=True, blank=True,
-                                    on_delete=models.PROTECT)
+    application = models.ForeignKey(
+        LeaveApplication, null=True, blank=True, on_delete=models.PROTECT
+    )
     source_key = models.CharField(max_length=180, unique=True)
     note = models.CharField(max_length=300, blank=True)
     created_by_user_id = models.BigIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        indexes = [models.Index(fields=["user_id", "leave_type", "year"],
-                                name="leave_ledger_account_idx")]
+        indexes = [
+            models.Index(fields=["user_id", "leave_type", "year"], name="leave_ledger_account_idx")
+        ]
+
+    def __str__(self) -> str:
+        return self.source_key
 
 
 class ResumptionRecord(models.Model):
-    application = models.ForeignKey(LeaveApplication, on_delete=models.PROTECT,
-                                    related_name="resumptions")
+    application = models.ForeignKey(
+        LeaveApplication, on_delete=models.PROTECT, related_name="resumptions"
+    )
     employee_user_id = models.BigIntegerField(db_index=True)
     actual_resumption_date = models.DateField()
-    state = models.CharField(max_length=40, default="resumption_review_pending")
+    state = models.CharField(max_length=64, default="resumption_review_pending")
     reviewed_by_user_id = models.BigIntegerField(null=True, blank=True)
     synchronization_status = models.CharField(max_length=32, default="not_required")
     synchronization_error = models.CharField(max_length=300, blank=True)
@@ -197,8 +258,12 @@ class ResumptionRecord(models.Model):
     reviewed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        constraints = [models.UniqueConstraint(
-            fields=["application"], name="leave_resumption_once")]
+        constraints = [
+            models.UniqueConstraint(fields=["application"], name="leave_resumption_once")
+        ]
+
+    def __str__(self) -> str:
+        return f"Resumption for request {self.application_id}"
 
 
 class SlaConfiguration(models.Model):
@@ -208,6 +273,9 @@ class SlaConfiguration(models.Model):
     escalation_user_id = models.BigIntegerField(null=True, blank=True)
     updated_by_user_id = models.BigIntegerField()
     updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self) -> str:
+        return self.task_kind
 
 
 class LeaveNotification(models.Model):
@@ -222,10 +290,14 @@ class LeaveNotification(models.Model):
     sent_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self) -> str:
+        return f"{self.topic} for {self.recipient_user_id}"
+
 
 class LeaveRecordCorrection(models.Model):
-    application = models.ForeignKey(LeaveApplication, null=True, blank=True,
-                                    on_delete=models.PROTECT)
+    application = models.ForeignKey(
+        LeaveApplication, null=True, blank=True, on_delete=models.PROTECT
+    )
     user_id = models.BigIntegerField()
     leave_type = models.CharField(max_length=3, choices=LEAVE_TYPE_CHOICES)
     amount = models.DecimalField(max_digits=9, decimal_places=2)
@@ -233,3 +305,6 @@ class LeaveRecordCorrection(models.Model):
     actor_user_id = models.BigIntegerField()
     transaction = models.OneToOneField(LeaveAccountTransaction, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"Correction {self.pk} for {self.user_id}"

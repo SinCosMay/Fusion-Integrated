@@ -1,4 +1,5 @@
 """Celery workers for year-end, SLA, notification and resumption work."""
+
 from __future__ import annotations
 
 import logging
@@ -20,8 +21,9 @@ log = logging.getLogger("fusion.leave.tasks")
 def process_year_end_task(year: int | None = None) -> dict[str, int]:
     closed_year = year if year is not None else timezone.localdate().year - 1
     result = year_end.process_year_end(closed_year)
-    log.info("leave.year_end.completed year=%d transactions=%d", closed_year,
-             result["transactions"])
+    log.info(
+        "leave.year_end.completed year=%d transactions=%d", closed_year, result["transactions"]
+    )
     return result
 
 
@@ -30,14 +32,14 @@ def process_sla_task() -> dict[str, int]:
     return process_thresholds()
 
 
-@shared_task(name="leave.deliver_notifications", acks_late=True,
-             reject_on_worker_lost=True)
+@shared_task(name="leave.deliver_notifications", acks_late=True, reject_on_worker_lost=True)
 def deliver_notifications(limit: int = 200) -> dict[str, int]:
-    pending = list(LeaveNotification.objects.filter(status="pending").order_by("created_at")[:limit])
+    pending = list(
+        LeaveNotification.objects.filter(status="pending").order_by("created_at")[:limit]
+    )
     try:
-        recipients = contracts.get_employees(
-            [row.recipient_user_id for row in pending])
-    except Exception as exc:
+        recipients = contracts.get_employees([row.recipient_user_id for row in pending])
+    except Exception as exc:  # noqa: BLE001 - isolate failures of external IAM providers
         log.warning("leave.notify.directory_unavailable error=%s", type(exc).__name__)
         return {"sent": 0, "failed": len(pending)}
     sent = failed = 0
@@ -51,9 +53,14 @@ def deliver_notifications(limit: int = 200) -> dict[str, int]:
             failed += 1
             continue
         try:
-            send_mail(row.subject, row.body, settings.DEFAULT_FROM_EMAIL,
-                      [address.email], fail_silently=False)
-        except Exception as exc:
+            send_mail(
+                row.subject,
+                row.body,
+                settings.DEFAULT_FROM_EMAIL,
+                [address.email],
+                fail_silently=False,
+            )
+        except Exception as exc:  # noqa: BLE001 - mail transports raise varied failures
             row.attempts += 1
             row.last_error = f"{type(exc).__name__}: {exc}"[:300]
             row.status = "failed" if row.attempts >= 5 else "pending"
@@ -69,8 +76,7 @@ def deliver_notifications(limit: int = 200) -> dict[str, int]:
     return {"sent": sent, "failed": failed}
 
 
-@shared_task(name="leave.synchronize_resumption", acks_late=True,
-             reject_on_worker_lost=True)
+@shared_task(name="leave.synchronize_resumption", acks_late=True, reject_on_worker_lost=True)
 def synchronize_resumption(record_id: int) -> str:
     try:
         record = ResumptionRecord.objects.select_related("application").get(pk=record_id)

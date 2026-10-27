@@ -19,9 +19,12 @@ def process_thresholds(now=None) -> dict[str, int]:
             continue
         elapsed = now - assigned_at
         if config.reminder_after_hours is not None and elapsed >= timedelta(
-                hours=config.reminder_after_hours):
-            row, created = LeaveNotification.objects.get_or_create(
-                dedupe_key=f"sla-reminder:{application.pk}:{application.status}:{assigned_at.isoformat()}",
+            hours=config.reminder_after_hours
+        ):
+            _, created = LeaveNotification.objects.get_or_create(
+                dedupe_key=(
+                    f"sla-reminder:{application.pk}:{application.status}:{assigned_at.isoformat()}"
+                ),
                 defaults={
                     "topic": "sla_reminder",
                     "recipient_user_id": _assignee(application),
@@ -31,8 +34,9 @@ def process_thresholds(now=None) -> dict[str, int]:
             )
             if created:
                 result["reminders"] += 1
-        if (config.escalation_after_hours is not None
-                and elapsed >= timedelta(hours=config.escalation_after_hours)):
+        if config.escalation_after_hours is not None and elapsed >= timedelta(
+            hours=config.escalation_after_hours
+        ):
             assignee = _assignee(application)
             target = config.escalation_user_id or assignee
             key = f"sla-escalation:{application.pk}:{application.status}:{assigned_at.isoformat()}"
@@ -40,9 +44,12 @@ def process_thresholds(now=None) -> dict[str, int]:
                 _, created = LeaveNotification.objects.get_or_create(
                     dedupe_key=key,
                     defaults={
-                        "topic": "sla_escalation", "recipient_user_id": target,
+                        "topic": "sla_escalation",
+                        "recipient_user_id": target,
                         "subject": "Leave task escalation",
-                        "body": f"Leave request {application.pk} passed its configured SLA threshold.",
+                        "body": (
+                            f"Leave request {application.pk} passed its configured SLA threshold."
+                        ),
                     },
                 )
                 if created and config.escalation_user_id:
